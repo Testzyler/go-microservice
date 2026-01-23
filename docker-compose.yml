@@ -1,0 +1,131 @@
+x-build: &app-build
+  context: .
+  dockerfile: Dockerfile
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  auth:
+    build: *app-build
+    command: ["serve-auth"]
+    env_file:
+      - .env.docker
+    environment:
+      AUTH_HTTP_PORT: 8081
+      AUTH_DATABASE_URL: postgres://postgres:postgres@postgres:5432/auth?sslmode=disable
+      LOG_ENCODING: console
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+
+  auth-worker:
+    build: *app-build
+    command: ["serve-auth-worker", "mailer"]
+    env_file:
+      - .env.docker
+    environment:
+      LOG_ENCODING: console
+    depends_on:
+      auth:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  auth-worker-auditor:
+    build: *app-build
+    command: ["serve-auth-worker", "auditor"]
+    env_file:
+      - .env.docker
+    environment:
+      LOG_ENCODING: console
+    depends_on:
+      auth:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  auth-worker-cleanup:
+    build: *app-build
+    command: ["serve-auth-worker", "cleanup"]
+    env_file:
+      - .env.docker
+    environment:
+      LOG_ENCODING: console
+    depends_on:
+      auth:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  auth-scheduler:
+    build: *app-build
+    command: ["serve-auth-scheduler"]
+    env_file:
+      - .env.docker
+    environment:
+      LOG_ENCODING: console
+    depends_on:
+      auth:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  internal-gateway:
+    build: *app-build
+    command: ["serve-internal-gateway"]
+    env_file:
+      - .env.docker
+    environment:
+      GATEWAY_SERVICE_NAME: internal-gateway
+      GATEWAY_PORT: 8080
+      AUTH_SERVICE_URL: http://auth:8081
+      LOG_ENCODING: console
+    depends_on:
+      auth:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  asynqmon:
+    image: hibiken/asynqmon:0.7.2
+    platform: ${ASYNQMON_PLATFORM:-linux/amd64}
+    command: ["--redis-addr=redis:6379"]
+    ports:
+      - "8082:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+        
+volumes:
+  postgres_data:
+  grafana_data:
+  loki_data:

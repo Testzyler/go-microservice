@@ -1,0 +1,28 @@
+# Go
+/bin/
+/dist/
+/tmp/
+*.log
+*.out
+*.test
+/vendor/
+
+# Env
+.env
+.env.*
+
+# OS
+.DS_Store
+
+# Node
+/node_modules/
+**/node_modules/
+/playwright-report/
+/test-results/
+
+# Coverage
+/coverage/
+coverage.*
+
+**/build/
+**/.docusaurus/

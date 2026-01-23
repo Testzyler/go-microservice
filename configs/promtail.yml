@@ -1,0 +1,67 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          __path__: /var/lib/docker/containers/*/*-json.log
+    pipeline_stages:
+      # Parse Docker JSON log format
+      - json:
+          expressions:
+            log: log
+            stream: stream
+            time: time
+      # Strip ANSI color codes early (e.g. colored zap console logs)
+      - replace:
+          source: log
+          expression: '\x1b\[[0-9;]*[A-Za-z]'
+          replace: ''
+      # Extract container ID from filename
+      - regex:
+          source: filename
+          expression: '/var/lib/docker/containers/(?P<container_id>[a-f0-9]{64})/[a-f0-9]+-json.log'
+      # Extract service from structured log (preferred)
+      - regex:
+          source: log
+          expression: '"service"\s*:\s*"(?P<service_from_log>[^"]+)"'
+      # Extract service from container ID by looking up docker metadata
+      # Since we can't access docker API, use container name from log path
+      - match:
+          selector: '{job="docker"}'
+          stages:
+            # Try to extract service from log content first
+            - template:
+                source: service
+                template: '{{ if .service_from_log }}{{ .service_from_log }}{{ end }}'
+      # Extract log level from zap console format
+      - regex:
+          source: log
+          expression: '(?:^|\t)(?P<level>DEBUG|INFO|WARN|ERROR|FATAL)\t'
+      # Fallback: extract level from JSON format  
+      - regex:
+          source: log
+          expression: '"level"\s*:\s*"(?P<level_json>(?:debug|info|warn|error|fatal))"'
+      # Set level
+      - template:
+          source: level
+          template: '{{ if .level }}{{ .level }}{{ else if .level_json }}{{ .level_json | ToUpper }}{{ end }}'
+      # Create labels
+      - labels:
+          service:
+          level:
+      # Output original log
+      - output:
+          source: log
+
