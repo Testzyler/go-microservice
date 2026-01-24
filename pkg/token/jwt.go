@@ -8,7 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
-	"github.com/Testzyler/go-microservice/global/pkg/auth"
+	"github.com/Testzyler/go-microservice/pkg/auth"
 )
 
 type Service interface {

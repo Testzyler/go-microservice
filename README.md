@@ -9,7 +9,7 @@ This repo now holds a lean starting point: an **internal gateway** plus an **aut
 - Shared building blocks in `global/pkg` (config, logging, observability, token/auth, async client/server/publisher, postgres).
 - Minimal CLI (`serve-internal-gateway`, `serve-auth`, `serve-auth-worker <worker>`, `serve-auth-scheduler`, optional `migrate` scaffold).
 - Docker Compose for Postgres + Redis + gateway + auth + worker + Grafana/Prometheus/Tempo.
- - Protos live in `global/proto`; generate Connect/gRPC clients/servers with `cd global/proto && buf generate` (output under `gen/proto`).
+- Protos live in `proto`; generate Connect/gRPC clients/servers with `cd proto && buf generate` (output under `gen/proto`).
 
 ## Quick start
 1) Copy envs (already duplicated):  

@@ -10,7 +10,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"github.com/Testzyler/go-microservice/global/pkg/auth"
+	"github.com/Testzyler/go-microservice/pkg/auth"
 	authrepo "github.com/Testzyler/go-microservice/services/auth/internal/adapters/postgres"
 	"github.com/Testzyler/go-microservice/services/auth/internal/domain/user"
 )

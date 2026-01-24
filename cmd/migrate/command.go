@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	envconfig "github.com/Testzyler/go-microservice/global/pkg/config"
+	envconfig "github.com/Testzyler/go-microservice/pkg/config"
 )
 
 func NewCommand() *cobra.Command {

@@ -3,7 +3,7 @@ package queue
 import (
 	"context"
 
-	"github.com/Testzyler/go-microservice/global/pkg/async"
+	"github.com/Testzyler/go-microservice/pkg/async"
 )
 
 type Publisher struct {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/hibiken/asynq"
 
-	asyncpkg "github.com/Testzyler/go-microservice/global/pkg/async"
+	asyncpkg "github.com/Testzyler/go-microservice/pkg/async"
 )
 
 const (

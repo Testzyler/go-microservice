@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/Testzyler/go-microservice/global/pkg/auth"
-	"github.com/Testzyler/go-microservice/global/pkg/token"
+	"github.com/Testzyler/go-microservice/pkg/auth"
+	"github.com/Testzyler/go-microservice/pkg/token"
 )
 
 type Config struct {

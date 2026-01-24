@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/Testzyler/go-microservice/global/pkg/auth"
-	"github.com/Testzyler/go-microservice/global/pkg/errx"
-	"github.com/Testzyler/go-microservice/global/pkg/token"
+	"github.com/Testzyler/go-microservice/pkg/auth"
+	"github.com/Testzyler/go-microservice/pkg/errx"
+	"github.com/Testzyler/go-microservice/pkg/token"
 	authrepo "github.com/Testzyler/go-microservice/services/auth/internal/adapters/postgres"
 	"github.com/Testzyler/go-microservice/services/auth/internal/domain/user"
 )

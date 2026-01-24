@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	authv1connect "github.com/Testzyler/go-microservice/gen/proto/auth/v1/authv1connect"
-	"github.com/Testzyler/go-microservice/global/pkg/token"
+	"github.com/Testzyler/go-microservice/pkg/token"
 	"github.com/Testzyler/go-microservice/services/internal-gateway/internal/config"
 	"github.com/Testzyler/go-microservice/services/internal-gateway/internal/middleware"
 )

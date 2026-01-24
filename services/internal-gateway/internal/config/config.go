@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	envconfig "github.com/Testzyler/go-microservice/global/pkg/config"
+	envconfig "github.com/Testzyler/go-microservice/pkg/config"
 )
 
 // Config holds gateway configuration

@@ -13,10 +13,10 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
-	"github.com/Testzyler/go-microservice/global/pkg/async"
-	"github.com/Testzyler/go-microservice/global/pkg/config"
-	"github.com/Testzyler/go-microservice/global/pkg/logging"
-	"github.com/Testzyler/go-microservice/global/pkg/observability"
+	"github.com/Testzyler/go-microservice/pkg/async"
+	"github.com/Testzyler/go-microservice/pkg/config"
+	"github.com/Testzyler/go-microservice/pkg/logging"
+	"github.com/Testzyler/go-microservice/pkg/observability"
 	"github.com/Testzyler/go-microservice/services/auth/internal/adapters/queue"
 	authconfig "github.com/Testzyler/go-microservice/services/auth/internal/config"
 )

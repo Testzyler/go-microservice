@@ -12,8 +12,22 @@ deps:
 fmt:
 	$(GO) fmt ./...
 
+
+# ============================================================================
+# Migrations
+# ============================================================================
+
+migrate-up-auth:
+	go run . migrate --path services/auth/migrations --database "postgres://postgres:postgres@localhost:5432/auth?sslmode=disable" --action up
+migrate-down-auth:
+	go run . migrate --path services/auth/migrations --database "postgres://postgres:postgres@localhost:5432/auth?sslmode=disable" --action down
+
+# ============================================================================
+# gRPC / Protobuf / Buf generation
+# ============================================================================
+
 buf-gen:
-	cd global/proto && $(BUF) generate
+	cd proto && $(BUF) generate
 
 unit:
 	ENV_FILES=$(ENV_FILES) $(GO) test ./...
@@ -40,6 +54,8 @@ auth-scheduler:
 
 serve-all:
 	ENV_FILES=$(ENV_FILES) $(GO) run . serve-all
+
+
 
 docker-up:
 	docker compose up -d --build

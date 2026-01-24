@@ -11,8 +11,8 @@ import (
 
 	authv1 "github.com/Testzyler/go-microservice/gen/proto/auth/v1"
 	authv1connect "github.com/Testzyler/go-microservice/gen/proto/auth/v1/authv1connect"
-	"github.com/Testzyler/go-microservice/global/pkg/auth"
-	"github.com/Testzyler/go-microservice/global/pkg/token"
+	"github.com/Testzyler/go-microservice/pkg/auth"
+	"github.com/Testzyler/go-microservice/pkg/token"
 	"github.com/Testzyler/go-microservice/services/internal-gateway/internal/config"
 )
 

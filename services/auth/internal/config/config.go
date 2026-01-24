@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	"github.com/Testzyler/go-microservice/global/pkg/config"
+	"github.com/Testzyler/go-microservice/pkg/config"
 )
 
 type Common struct {

@@ -1,6 +1,6 @@
 package user
 
-import "github.com/Testzyler/go-microservice/global/pkg/errx"
+import "github.com/Testzyler/go-microservice/pkg/errx"
 
 var (
 	ErrInvalidEmail       = errx.New("auth.invalid_email", "invalid email", errx.KindInvalidArgument)

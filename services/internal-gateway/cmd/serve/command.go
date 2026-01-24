@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/Testzyler/go-microservice/global/pkg/logging"
-	"github.com/Testzyler/go-microservice/global/pkg/observability"
+	"github.com/Testzyler/go-microservice/pkg/logging"
+	"github.com/Testzyler/go-microservice/pkg/observability"
 	"github.com/Testzyler/go-microservice/services/internal-gateway/internal/config"
 	"github.com/Testzyler/go-microservice/services/internal-gateway/internal/proxy"
 )

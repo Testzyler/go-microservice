@@ -12,8 +12,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/Testzyler/go-microservice/global/pkg/async"
-	"github.com/Testzyler/go-microservice/global/pkg/email"
+	"github.com/Testzyler/go-microservice/pkg/async"
+	"github.com/Testzyler/go-microservice/pkg/email"
 )
 
 type MailerHandler struct {
