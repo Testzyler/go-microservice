@@ -23,7 +23,12 @@ func NewPublisher(client *asynq.Client, logger *zap.Logger) *Publisher {
 
 func (p *Publisher) Enqueue(ctx context.Context, task *asynq.Task, opts ...asynq.Option) (*asynq.TaskInfo, error) {
 	ctx, span := p.tracer.Start(ctx, "async.enqueue", trace.WithSpanKind(trace.SpanKindProducer))
-	span.SetAttributes(attribute.String("task.type", task.Type()))
+	span.SetAttributes(
+		attribute.String("task.type", task.Type()),
+		attribute.String("messaging.system", "asynq"),
+		attribute.String("messaging.operation", "publish"),
+		attribute.String("messaging.message_type", task.Type()),
+	)
 	defer span.End()
 
 	info, err := p.client.EnqueueContext(ctx, task, opts...)
@@ -35,6 +40,10 @@ func (p *Publisher) Enqueue(ctx context.Context, task *asynq.Task, opts ...asynq
 		}
 		return nil, err
 	}
+	span.SetAttributes(
+		attribute.String("messaging.message_id", info.ID),
+		attribute.String("messaging.destination", info.Queue),
+	)
 
 	if p.logger != nil {
 		p.logger.Debug("enqueued task",

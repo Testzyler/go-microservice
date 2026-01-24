@@ -15,7 +15,12 @@ func NewPublisher(client *async.Publisher) *Publisher {
 }
 
 func (p *Publisher) EnqueueWelcomeEmail(ctx context.Context, userID, email string) error {
-	task, opts, err := NewWelcomeEmailTask(userID, email)
+	payload := WelcomeEmailPayload{
+		UserID: userID,
+		Email:  email,
+	}
+	async.InjectTrace(ctx, &payload.Trace)
+	task, opts, err := NewWelcomeEmailTask(payload)
 	if err != nil {
 		return err
 	}
@@ -24,6 +29,7 @@ func (p *Publisher) EnqueueWelcomeEmail(ctx context.Context, userID, email strin
 }
 
 func (p *Publisher) EnqueueSendMFA(ctx context.Context, payload SendMFAPayload) error {
+	async.InjectTrace(ctx, &payload.Trace)
 	task, opts, err := NewSendMFATask(payload)
 	if err != nil {
 		return err
@@ -33,6 +39,7 @@ func (p *Publisher) EnqueueSendMFA(ctx context.Context, payload SendMFAPayload) 
 }
 
 func (p *Publisher) EnqueueAuditLog(ctx context.Context, payload AuditLogPayload) error {
+	async.InjectTrace(ctx, &payload.Trace)
 	task, opts, err := NewAuditLogTask(payload)
 	if err != nil {
 		return err
@@ -42,7 +49,9 @@ func (p *Publisher) EnqueueAuditLog(ctx context.Context, payload AuditLogPayload
 }
 
 func (p *Publisher) EnqueueCleanupSessions(ctx context.Context, graceMinutes int) error {
-	task, opts, err := NewCleanupSessionsTask(graceMinutes)
+	payload := CleanupSessionsPayload{GracePeriodMinutes: graceMinutes}
+	async.InjectTrace(ctx, &payload.Trace)
+	task, opts, err := NewCleanupSessionsTask(payload)
 	if err != nil {
 		return err
 	}

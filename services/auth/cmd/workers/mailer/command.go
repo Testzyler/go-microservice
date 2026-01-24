@@ -15,6 +15,7 @@ import (
 
 	"github.com/Testzyler/go-microservice/global/pkg/async"
 	"github.com/Testzyler/go-microservice/global/pkg/config"
+	"github.com/Testzyler/go-microservice/global/pkg/email"
 	"github.com/Testzyler/go-microservice/global/pkg/logging"
 	"github.com/Testzyler/go-microservice/global/pkg/observability"
 	"github.com/Testzyler/go-microservice/services/auth/internal/adapters/queue"
@@ -84,7 +85,24 @@ func run(envFiles string) error {
 		},
 	}, logger)
 
-	handler := queue.NewMailerHandler(logger)
+	var sender email.Sender = email.NoopSender{}
+	if cfg.EmailEnabled {
+		client, err := email.NewPostmarkClient(email.PostmarkConfig{
+			ServerToken:   cfg.PostmarkServerToken,
+			From:          cfg.EmailFrom,
+			MessageStream: cfg.PostmarkMessageStream,
+			Endpoint:      cfg.PostmarkEndpoint,
+			Timeout:       10 * time.Second,
+		})
+		if err != nil {
+			return err
+		}
+		sender = client
+	} else {
+		logger.Info("email sending disabled")
+	}
+
+	handler := queue.NewMailerHandler(logger, sender, cfg.ServiceName)
 	mux := asynq.NewServeMux()
 	handler.Register(mux)
 

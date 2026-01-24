@@ -7,27 +7,35 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
+	"github.com/bufbuild/protovalidate-go"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
 	authv1 "github.com/Testzyler/go-microservice/gen/proto/auth/v1"
 	authv1connect "github.com/Testzyler/go-microservice/gen/proto/auth/v1/authv1connect"
+	"github.com/Testzyler/go-microservice/global/pkg/errx"
 	"github.com/Testzyler/go-microservice/services/auth/internal/application"
-	"github.com/Testzyler/go-microservice/services/auth/internal/domain/user"
 )
 
 type Server struct {
 	authv1connect.UnimplementedAuthServiceHandler
-	auth    *application.AuthService
-	log     *zap.Logger
-	http    *http.Server
-	metrics http.Handler
+	auth      *application.AuthService
+	log       *zap.Logger
+	http      *http.Server
+	metrics   http.Handler
+	validator *protovalidate.Validator
 }
 
-func NewServer(auth *application.AuthService, log *zap.Logger, metrics http.Handler) *Server {
-	return &Server{auth: auth, log: log, metrics: metrics}
+func NewServer(auth *application.AuthService, log *zap.Logger, metrics http.Handler) (*Server, error) {
+	validator, err := protovalidate.New()
+	if err != nil {
+		return nil, err
+	}
+	return &Server{auth: auth, log: log, metrics: metrics, validator: validator}, nil
 }
 
 func (s *Server) Start(addr string) error {
@@ -43,7 +51,16 @@ func (s *Server) Start(addr string) error {
 			return next(ctx, req)
 		}
 	})
-	interceptors := connect.WithInterceptors(otelInterceptor, logInterceptor)
+	errInterceptor := connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			resp, err := next(ctx, req)
+			if err != nil {
+				return nil, normalizeError(ctx, err)
+			}
+			return resp, nil
+		}
+	})
+	interceptors := connect.WithInterceptors(errInterceptor, otelInterceptor, logInterceptor)
 
 	path, handler := authv1connect.NewAuthServiceHandler(s, interceptors)
 	mux.Handle(path, handler)
@@ -57,8 +74,25 @@ func (s *Server) Start(addr string) error {
 	}
 
 	s.http = &http.Server{
-		Addr:    addr,
-		Handler: otelhttp.NewHandler(h2c.NewHandler(mux, &http2.Server{}), "auth-connect"),
+		Addr: addr,
+		Handler: otelhttp.NewHandler(
+			h2c.NewHandler(mux, &http2.Server{}),
+			"auth-connect",
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				route := httpRoute(r)
+				if route == "" {
+					return r.Method
+				}
+				return r.Method + " " + route
+			}),
+			otelhttp.WithMetricAttributesFn(func(r *http.Request) []attribute.KeyValue {
+				route := httpRoute(r)
+				if route == "" {
+					return nil
+				}
+				return []attribute.KeyValue{attribute.String("http.route", route)}
+			}),
+		),
 	}
 	s.log.Info("starting auth connect server", zap.String("addr", addr))
 	return s.http.ListenAndServe()
@@ -72,59 +106,125 @@ func (s *Server) Stop(ctx context.Context) error {
 }
 
 func (s *Server) Register(ctx context.Context, req *connect.Request[authv1.RegisterRequest]) (*connect.Response[authv1.RegisterResponse], error) {
+	if err := s.validator.Validate(req.Msg); err != nil {
+		return nil, errx.New("auth.validation_failed", "validation failed", errx.KindInvalidArgument).WithCause(err)
+	}
 	result, err := s.auth.Register(ctx, req.Msg.Email, req.Msg.Password)
 	if err != nil {
-		return nil, connect.NewError(codeFor(err), err)
+		return nil, err
 	}
-	return connect.NewResponse(&authv1.RegisterResponse{
+	resp := connect.NewResponse(&authv1.RegisterResponse{
 		UserId:      result.UserID.String(),
 		AccessToken: result.AccessToken,
 		Roles:       result.Roles,
 		Permissions: result.Permissions,
 		ExpiresIn:   result.ExpiresIn,
-	}), nil
+	})
+	attachTraceID(ctx, resp.Header())
+	return resp, nil
 }
 
 func (s *Server) Login(ctx context.Context, req *connect.Request[authv1.LoginRequest]) (*connect.Response[authv1.LoginResponse], error) {
+	if err := s.validator.Validate(req.Msg); err != nil {
+		return nil, errx.New("auth.validation_failed", "validation failed", errx.KindInvalidArgument).WithCause(err)
+	}
 	result, err := s.auth.Login(ctx, req.Msg.Email, req.Msg.Password)
 	if err != nil {
-		return nil, connect.NewError(codeFor(err), err)
+		return nil, err
 	}
-	return connect.NewResponse(&authv1.LoginResponse{
+	resp := connect.NewResponse(&authv1.LoginResponse{
 		UserId:      result.UserID.String(),
 		AccessToken: result.AccessToken,
 		Roles:       result.Roles,
 		Permissions: result.Permissions,
 		ExpiresIn:   result.ExpiresIn,
-	}), nil
+	})
+	attachTraceID(ctx, resp.Header())
+	return resp, nil
 }
 
 func (s *Server) Validate(ctx context.Context, req *connect.Request[authv1.ValidateRequest]) (*connect.Response[authv1.ValidateResponse], error) {
+	if err := s.validator.Validate(req.Msg); err != nil {
+		return nil, errx.New("auth.validation_failed", "validation failed", errx.KindInvalidArgument).WithCause(err)
+	}
 	claims, err := s.auth.Validate(ctx, req.Msg.Token)
 	if err != nil {
-		return connect.NewResponse(&authv1.ValidateResponse{Valid: false, Reason: "invalid token"}), nil
+		resp := connect.NewResponse(&authv1.ValidateResponse{Valid: false, Reason: "invalid token"})
+		attachTraceID(ctx, resp.Header())
+		return resp, nil
 	}
-	return connect.NewResponse(&authv1.ValidateResponse{
+	resp := connect.NewResponse(&authv1.ValidateResponse{
 		Valid:       true,
 		UserId:      claims.Subject.String(),
 		Roles:       claims.Roles,
 		Permissions: claims.Permissions,
-	}), nil
+	})
+	attachTraceID(ctx, resp.Header())
+	return resp, nil
 }
 
-func codeFor(err error) connect.Code {
-	switch {
-	case errorsIs(err, user.ErrUserExists):
-		return connect.CodeAlreadyExists
-	case errorsIs(err, user.ErrBadPassword), errorsIs(err, user.ErrNotFound):
-		return connect.CodeUnauthenticated
-	case errorsIs(err, user.ErrInvalidEmail):
+func normalizeError(ctx context.Context, err error) *connect.Error {
+	if err == nil {
+		return nil
+	}
+	var connErr *connect.Error
+	if errors.As(err, &connErr) {
+		if connErr.Meta().Get("x-error-code") == "" {
+			connErr.Meta().Set("x-error-code", errx.Code(err))
+		}
+		attachTraceID(ctx, connErr.Meta())
+		return connErr
+	}
+	code := connectCodeForKind(errx.KindOf(err))
+	connErr = connect.NewError(code, err)
+	connErr.Meta().Set("x-error-code", errx.Code(err))
+	attachTraceID(ctx, connErr.Meta())
+	return connErr
+}
+
+func connectCodeForKind(kind errx.Kind) connect.Code {
+	switch kind {
+	case errx.KindInvalidArgument:
 		return connect.CodeInvalidArgument
+	case errx.KindNotFound:
+		return connect.CodeNotFound
+	case errx.KindConflict:
+		return connect.CodeAlreadyExists
+	case errx.KindUnauthenticated:
+		return connect.CodeUnauthenticated
+	case errx.KindForbidden:
+		return connect.CodePermissionDenied
+	case errx.KindUnavailable:
+		return connect.CodeUnavailable
 	default:
 		return connect.CodeInternal
 	}
 }
 
-func errorsIs(err, target error) bool {
-	return err != nil && target != nil && errors.Is(err, target)
+func attachTraceID(ctx context.Context, headers http.Header) {
+	if headers == nil {
+		return
+	}
+	span := trace.SpanFromContext(ctx)
+	if span == nil {
+		return
+	}
+	sc := span.SpanContext()
+	if !sc.IsValid() {
+		return
+	}
+	headers.Set("x-trace-id", sc.TraceID().String())
+}
+
+func httpRoute(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	if r.URL == nil {
+		return ""
+	}
+	if r.URL.Path != "" {
+		return r.URL.Path
+	}
+	return r.Pattern
 }

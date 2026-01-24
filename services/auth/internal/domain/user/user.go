@@ -55,7 +55,7 @@ func (u *User) CheckPassword(password string) (bool, error) {
 func ValidatePassword(password string) error {
 	trimmed := strings.TrimSpace(password)
 	if len(trimmed) < 6 {
-		return ErrInvalidPassword
+		return ErrInvalidCredentials
 	}
 	return nil
 }

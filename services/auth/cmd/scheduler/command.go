@@ -111,7 +111,9 @@ func run(envFiles string) error {
 }
 
 func registerCleanup(s *asynq.Scheduler, cron string, graceMinutes int) (string, error) {
-	task, opts, err := queue.NewCleanupSessionsTask(graceMinutes)
+	task, opts, err := queue.NewCleanupSessionsTask(queue.CleanupSessionsPayload{
+		GracePeriodMinutes: graceMinutes,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -119,7 +121,9 @@ func registerCleanup(s *asynq.Scheduler, cron string, graceMinutes int) (string,
 }
 
 func registerHeartbeat(s *asynq.Scheduler, cron string, queueName string) (string, error) {
-	task, opts, err := queue.NewHeartbeatTask("auth scheduler heartbeat")
+	task, opts, err := queue.NewHeartbeatTask(queue.HeartbeatPayload{
+		Message: "auth scheduler heartbeat",
+	})
 	if err != nil {
 		return "", err
 	}

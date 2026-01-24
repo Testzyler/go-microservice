@@ -50,7 +50,7 @@ func (h *authHandlers) issueToken(c *fiber.Ctx) error {
 		Permissions: append([]string(nil), req.Permissions...),
 	}
 
-	token, err := h.tokens.IssueAccessToken(c.Context(), claims)
+	token, err := h.tokens.IssueAccessToken(c.UserContext(), claims)
 	if err != nil {
 		h.logger.Error("failed to issue token", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to issue token"})
@@ -83,7 +83,7 @@ func (h *authHandlers) register(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 	}
-	resp, err := h.auth.Register(c.Context(), connect.NewRequest(&authv1.RegisterRequest{
+	resp, err := h.auth.Register(c.UserContext(), connect.NewRequest(&authv1.RegisterRequest{
 		Email:    req.Email,
 		Password: req.Password,
 	}))
@@ -101,7 +101,7 @@ func (h *authHandlers) login(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 	}
-	resp, err := h.auth.Login(c.Context(), connect.NewRequest(&authv1.LoginRequest{
+	resp, err := h.auth.Login(c.UserContext(), connect.NewRequest(&authv1.LoginRequest{
 		Email:    req.Email,
 		Password: req.Password,
 	}))
@@ -122,7 +122,7 @@ func (h *authHandlers) authValidate(c *fiber.Ctx) error {
 	}
 	tokenString := parts[1]
 
-	resp, err := h.auth.Validate(c.Context(), connect.NewRequest(&authv1.ValidateRequest{Token: tokenString}))
+	resp, err := h.auth.Validate(c.UserContext(), connect.NewRequest(&authv1.ValidateRequest{Token: tokenString}))
 	if err != nil {
 		return writeConnectError(c, err)
 	}

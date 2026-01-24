@@ -1,14 +1,12 @@
 package user
 
-import "errors"
+import "github.com/Testzyler/go-microservice/global/pkg/errx"
 
 var (
-	ErrInvalidEmail       = errors.New("invalid email")
-	ErrInvalidPassword    = errors.New("invalid password")
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrUserExists         = errors.New("user already exists")
+	ErrInvalidEmail       = errx.New("auth.invalid_email", "invalid email", errx.KindInvalidArgument)
+	ErrInvalidCredentials = errx.New("auth.invalid_credentials", "invalid credentials", errx.KindUnauthenticated)
+	ErrUserExists         = errx.New("auth.user_exists", "user already exists", errx.KindConflict)
 
-	ErrNotFound     = errors.New("user not found")
-	ErrBadPassword  = errors.New("invalid credentials")
-	ErrUserNotFound = errors.New("user not found")
+	ErrNotFound    = errx.New("auth.user_not_found", "user not found", errx.KindNotFound)
+	ErrBadPassword = errx.New("auth.bad_password", "invalid credentials", errx.KindUnauthenticated)
 )

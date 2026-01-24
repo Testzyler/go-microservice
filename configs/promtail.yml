@@ -36,6 +36,10 @@ scrape_configs:
       - regex:
           source: log
           expression: '"service"\s*:\s*"(?P<service_from_log>[^"]+)"'
+      # Fallback: extract service from logfmt-style logs
+      - regex:
+          source: log
+          expression: '\bservice=(?P<service_from_log_kv>[^\s]+)'
       # Extract service from container ID by looking up docker metadata
       # Since we can't access docker API, use container name from log path
       - match:
@@ -44,7 +48,7 @@ scrape_configs:
             # Try to extract service from log content first
             - template:
                 source: service
-                template: '{{ if .service_from_log }}{{ .service_from_log }}{{ end }}'
+                template: '{{ if .service_from_log }}{{ .service_from_log }}{{ else if .service_from_log_kv }}{{ .service_from_log_kv }}{{ else if .container_id }}{{ .container_id }}{{ end }}'
       # Extract log level from zap console format
       - regex:
           source: log
@@ -61,7 +65,7 @@ scrape_configs:
       - labels:
           service:
           level:
+          container_id:
       # Output original log
       - output:
           source: log
-

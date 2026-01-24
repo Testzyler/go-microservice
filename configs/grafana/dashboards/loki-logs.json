@@ -600,7 +600,7 @@
   "templating": {
     "list": [
       {
-        "allValue": "(gateway|service-.*)",
+        "allValue": ".*",
         "current": {
           "selected": false,
           "text": "All",
@@ -619,7 +619,7 @@
         "options": [],
         "query": "label_values({job=\"docker\"}, service)",
         "refresh": 2,
-        "regex": "(gateway|service-.*)",
+        "regex": ".*",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"

@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+
+	asyncpkg "github.com/Testzyler/go-microservice/global/pkg/async"
 )
 
 const (
@@ -23,40 +25,46 @@ const (
 )
 
 type WelcomeEmailPayload struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
+	Trace  asyncpkg.TraceCarrier `json:"trace,omitempty"`
+	UserID string                `json:"user_id"`
+	Email  string                `json:"email"`
 }
 
 type SendMFAPayload struct {
-	UserID    string `json:"user_id"`
-	Channel   string `json:"channel"` // email or sms
-	Masked    string `json:"masked"`
-	Challenge string `json:"challenge"`
+	Trace     asyncpkg.TraceCarrier `json:"trace,omitempty"`
+	UserID    string                `json:"user_id"`
+	Email     string                `json:"email,omitempty"`
+	Channel   string                `json:"channel"` // email or sms
+	Masked    string                `json:"masked"`
+	Challenge string                `json:"challenge"`
 }
 
 type AuditLogPayload struct {
-	UserID    string `json:"user_id"`
-	Action    string `json:"action"`
-	SessionID string `json:"session_id,omitempty"`
-	IP        string `json:"ip,omitempty"`
-	UserAgent string `json:"user_agent,omitempty"`
-	Reason    string `json:"reason,omitempty"`
+	Trace     asyncpkg.TraceCarrier `json:"trace,omitempty"`
+	UserID    string                `json:"user_id"`
+	Action    string                `json:"action"`
+	SessionID string                `json:"session_id,omitempty"`
+	IP        string                `json:"ip,omitempty"`
+	UserAgent string                `json:"user_agent,omitempty"`
+	Reason    string                `json:"reason,omitempty"`
 }
 
 type CleanupSessionsPayload struct {
-	GracePeriodMinutes int `json:"grace_period_minutes"`
+	Trace              asyncpkg.TraceCarrier `json:"trace,omitempty"`
+	GracePeriodMinutes int                   `json:"grace_period_minutes"`
 }
 
 type HeartbeatPayload struct {
-	Message string `json:"message"`
+	Trace   asyncpkg.TraceCarrier `json:"trace,omitempty"`
+	Message string                `json:"message"`
 }
 
-func NewWelcomeEmailTask(userID, email string) (*asynq.Task, []asynq.Option, error) {
-	payload, err := json.Marshal(WelcomeEmailPayload{UserID: userID, Email: email})
+func NewWelcomeEmailTask(payload WelcomeEmailPayload) (*asynq.Task, []asynq.Option, error) {
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, nil, err
 	}
-	task := asynq.NewTask(TaskWelcomeEmailV1, payload)
+	task := asynq.NewTask(TaskWelcomeEmailV1, body)
 	opts := []asynq.Option{
 		asynq.Queue(QueueDefault),
 		asynq.Timeout(30 * time.Second),
@@ -98,8 +106,8 @@ func NewAuditLogTask(payload AuditLogPayload) (*asynq.Task, []asynq.Option, erro
 	return task, opts, nil
 }
 
-func NewCleanupSessionsTask(graceMinutes int) (*asynq.Task, []asynq.Option, error) {
-	body, err := json.Marshal(CleanupSessionsPayload{GracePeriodMinutes: graceMinutes})
+func NewCleanupSessionsTask(payload CleanupSessionsPayload) (*asynq.Task, []asynq.Option, error) {
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -114,8 +122,8 @@ func NewCleanupSessionsTask(graceMinutes int) (*asynq.Task, []asynq.Option, erro
 	return task, opts, nil
 }
 
-func NewHeartbeatTask(message string) (*asynq.Task, []asynq.Option, error) {
-	body, err := json.Marshal(HeartbeatPayload{Message: message})
+func NewHeartbeatTask(payload HeartbeatPayload) (*asynq.Task, []asynq.Option, error) {
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, nil, err
 	}

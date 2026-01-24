@@ -19,6 +19,7 @@ import (
 	"github.com/Testzyler/go-microservice/global/pkg/postgres"
 	"github.com/Testzyler/go-microservice/global/pkg/token"
 	"github.com/Testzyler/go-microservice/services/auth/internal/adapters/connect"
+	authqueue "github.com/Testzyler/go-microservice/services/auth/internal/adapters/queue"
 	authrepo "github.com/Testzyler/go-microservice/services/auth/internal/adapters/postgres"
 	"github.com/Testzyler/go-microservice/services/auth/internal/application"
 	authconfig "github.com/Testzyler/go-microservice/services/auth/internal/config"
@@ -82,7 +83,7 @@ func run(envFiles string) error {
 	})
 	defer queueClient.Close()
 
-	_ = async.NewPublisher(queueClient, logger) // placeholder for future async tasks
+	taskPublisher := authqueue.NewPublisher(async.NewPublisher(queueClient, logger))
 
 	tokenSvc := token.NewJWTService(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTAudience, cfg.AccessTokenTTL)
 	db, err := postgres.Open(ctx, postgres.Config{
@@ -107,8 +108,11 @@ func run(envFiles string) error {
 	if err != nil {
 		return err
 	}
-	app := application.NewAuthService(repo, tokenSvc, cfg.AccessTokenTTL)
-	server := connect.NewServer(app, logger, metricsHandler)
+	app := application.NewAuthService(repo, tokenSvc, cfg.AccessTokenTTL, taskPublisher, logger)
+	server, err := connect.NewServer(app, logger, metricsHandler)
+	if err != nil {
+		return err
+	}
 
 	go func() {
 		addr := fmt.Sprintf(":%d", cfg.HTTPPort)

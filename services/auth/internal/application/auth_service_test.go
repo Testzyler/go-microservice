@@ -36,10 +36,26 @@ func (s *stubTokenService) ParseAccessToken(_ context.Context, tokenStr string) 
 	return s.claims, nil
 }
 
+type stubTaskPublisher struct {
+	entries []welcomeEntry
+	err     error
+}
+
+type welcomeEntry struct {
+	userID string
+	email  string
+}
+
+func (s *stubTaskPublisher) EnqueueWelcomeEmail(_ context.Context, userID, email string) error {
+	s.entries = append(s.entries, welcomeEntry{userID: userID, email: email})
+	return s.err
+}
+
 func TestAuthService_RegisterAndLogin(t *testing.T) {
 	repo := newRepo(t)
 	tokens := &stubTokenService{}
-	svc := NewAuthService(repo, tokens, defaultTTL)
+	pub := &stubTaskPublisher{}
+	svc := NewAuthService(repo, tokens, defaultTTL, pub, nil)
 
 	res, err := svc.Register(context.Background(), "user@example.com", "secret")
 	if err != nil {
@@ -50,6 +66,15 @@ func TestAuthService_RegisterAndLogin(t *testing.T) {
 	}
 	if len(tokens.issued) != 1 {
 		t.Fatalf("expected token issued on register")
+	}
+	if len(pub.entries) != 1 {
+		t.Fatalf("expected welcome email enqueue")
+	}
+	if pub.entries[0].email != "user@example.com" {
+		t.Fatalf("unexpected welcome email address: %s", pub.entries[0].email)
+	}
+	if pub.entries[0].userID != res.UserID.String() {
+		t.Fatalf("unexpected welcome user id: %s", pub.entries[0].userID)
 	}
 
 	login, err := svc.Login(context.Background(), "user@example.com", "secret")
@@ -67,7 +92,7 @@ func TestAuthService_RegisterAndLogin(t *testing.T) {
 func TestAuthService_LoginInvalid(t *testing.T) {
 	repo := newRepo(t)
 	tokens := &stubTokenService{}
-	svc := NewAuthService(repo, tokens, defaultTTL)
+	svc := NewAuthService(repo, tokens, defaultTTL, nil, nil)
 
 	_, _ = svc.Register(context.Background(), "user@example.com", "secret")
 	if _, err := svc.Login(context.Background(), "user@example.com", "wrong"); !errors.Is(err, user.ErrBadPassword) {
@@ -83,7 +108,7 @@ func TestAuthService_Validate(t *testing.T) {
 			Roles:   []string{"user"},
 		},
 	}
-	svc := NewAuthService(repo, tokens, defaultTTL)
+	svc := NewAuthService(repo, tokens, defaultTTL, nil, nil)
 
 	claims, err := svc.Validate(context.Background(), "any")
 	if err != nil {

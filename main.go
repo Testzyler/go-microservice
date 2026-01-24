@@ -22,7 +22,7 @@ func main() {
 		Use:   "go-microservice",
 		Short: "Go microservice template entrypoint",
 		Run: func(cmd *cobra.Command, args []string) {
-			runGateway()
+			runAllServices()
 		},
 	}
 	root.AddCommand(
@@ -30,8 +30,8 @@ func main() {
 		authCmd.NewCommand(),
 		authWorkersCmd.NewCommand(),
 		authSchedulerCmd.NewCommand(),
-		newServeAllCommand(),
 		migrateCmd.NewCommand(),
+		newServeAllCommand(),
 	)
 
 	if err := root.Execute(); err != nil {

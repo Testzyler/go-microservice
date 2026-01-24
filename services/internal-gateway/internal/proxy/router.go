@@ -1,10 +1,12 @@
 package proxy
 
 import (
+	"context"
 	"net/http"
 	"time"
 
 	"connectrpc.com/connect"
+	"connectrpc.com/otelconnect"
 	"github.com/gofiber/contrib/otelfiber"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/trace"
@@ -35,7 +37,16 @@ func NewRouter(cfg *config.Config, logger *zap.Logger) (*Router, error) {
 
 	tokenService := token.NewJWTService(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTAudience, cfg.AccessTokenTTL)
 	httpClient := &http.Client{Timeout: 10 * time.Second}
-	authClient := authv1connect.NewAuthServiceClient(httpClient, cfg.AuthServiceURL, connect.WithGRPC())
+	otelInterceptor, err := otelconnect.NewInterceptor()
+	if err != nil {
+		return nil, err
+	}
+	authClient := authv1connect.NewAuthServiceClient(
+		httpClient,
+		cfg.AuthServiceURL,
+		connect.WithInterceptors(otelInterceptor),
+		connect.WithGRPC(),
+	)
 
 	router := &Router{
 		app:          app,
@@ -57,7 +68,11 @@ func (r *Router) setupMiddleware() {
 		r.app.Use(otelfiber.Middleware(
 			otelfiber.WithServerName("internal-gateway"),
 			otelfiber.WithSpanNameFormatter(func(c *fiber.Ctx) string {
-				return c.Method() + " " + c.Path()
+				route := c.Route().Path
+				if route == "" {
+					route = c.Path()
+				}
+				return c.Method() + " " + route
 			}),
 		))
 	}
@@ -135,7 +150,34 @@ func writeConnectError(c *fiber.Ctx, err error) error {
 		default:
 			status = fiber.StatusInternalServerError
 		}
-		return c.Status(status).JSON(fiber.Map{"error": connectErr.Message()})
+		errCode := connectErr.Meta().Get("x-error-code")
+		traceID := connectErr.Meta().Get("x-trace-id")
+		if traceID == "" {
+			traceID = traceIDFromContext(c.UserContext())
+		}
+		if traceID != "" {
+			c.Set("X-Trace-ID", traceID)
+		}
+		payload := fiber.Map{"error": connectErr.Message()}
+		if errCode != "" {
+			payload["code"] = errCode
+		}
+		if traceID != "" {
+			payload["trace_id"] = traceID
+		}
+		return c.Status(status).JSON(payload)
 	}
 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal error"})
+}
+
+func traceIDFromContext(ctx context.Context) string {
+	span := trace.SpanFromContext(ctx)
+	if span == nil {
+		return ""
+	}
+	sc := span.SpanContext()
+	if !sc.IsValid() {
+		return ""
+	}
+	return sc.TraceID().String()
 }

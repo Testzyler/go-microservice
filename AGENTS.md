@@ -1,7 +1,7 @@
 # Project Agent Guide
 
 ## Persona
-- you must read `architect.md` first to understand the high-level design.
+- you must read `architech.md` first to understand the high-level design.
 
 ## Project facts
 - Go 1.25, Fiber HTTP.

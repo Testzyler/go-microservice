@@ -2,12 +2,14 @@ package application
 
 import (
 	"context"
-	"errors"
 	"time"
 
+	"github.com/Testzyler/go-microservice/services/auth/internal/ports"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/Testzyler/go-microservice/global/pkg/auth"
+	"github.com/Testzyler/go-microservice/global/pkg/errx"
 	"github.com/Testzyler/go-microservice/global/pkg/token"
 	authrepo "github.com/Testzyler/go-microservice/services/auth/internal/adapters/postgres"
 	"github.com/Testzyler/go-microservice/services/auth/internal/domain/user"
@@ -17,13 +19,17 @@ type AuthService struct {
 	users     authrepo.UserRepository
 	tokens    token.Service
 	accessTTL time.Duration
+	tasks     ports.TaskPublisher
+	logger    *zap.Logger
 }
 
-func NewAuthService(users authrepo.UserRepository, tokens token.Service, accessTTL time.Duration) *AuthService {
+func NewAuthService(users authrepo.UserRepository, tokens token.Service, accessTTL time.Duration, tasks ports.TaskPublisher, logger *zap.Logger) *AuthService {
 	return &AuthService{
 		users:     users,
 		tokens:    tokens,
 		accessTTL: accessTTL,
+		tasks:     tasks,
+		logger:    logger,
 	}
 }
 
@@ -51,12 +57,13 @@ func (s *AuthService) Register(ctx context.Context, email, password string) (*Au
 		return nil, err
 	}
 	u = created
+	s.enqueueWelcomeEmail(ctx, u)
 	return s.issueToken(ctx, u)
 }
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (*AuthResult, error) {
 	if email == "" || password == "" {
-		return nil, errors.New("email and password are required")
+		return nil, errx.New("auth.missing_credentials", "email and password are required", errx.KindInvalidArgument)
 	}
 	normalized, err := user.NormalizeEmail(email)
 	if err != nil {
@@ -82,7 +89,7 @@ func (s *AuthService) GetUser(ctx context.Context, id uuid.UUID) (*user.User, er
 
 func (s *AuthService) Validate(ctx context.Context, tokenStr string) (*auth.Claims, error) {
 	if tokenStr == "" {
-		return nil, errors.New("token is required")
+		return nil, errx.New("auth.missing_token", "token is required", errx.KindInvalidArgument)
 	}
 	claims, err := s.tokens.ParseAccessToken(ctx, tokenStr)
 	if err != nil {
@@ -108,6 +115,15 @@ func (s *AuthService) issueToken(ctx context.Context, u *user.User) (*AuthResult
 		Permissions: claims.Permissions,
 		ExpiresIn:   int64(s.accessTTL.Seconds()),
 	}, nil
+}
+
+func (s *AuthService) enqueueWelcomeEmail(ctx context.Context, u *user.User) {
+	if s.tasks == nil {
+		return
+	}
+	if err := s.tasks.EnqueueWelcomeEmail(ctx, u.ID.String(), u.Email); err != nil && s.logger != nil {
+		s.logger.Warn("enqueue welcome email failed", zap.String("user_id", u.ID.String()), zap.String("email", u.Email), zap.Error(err))
+	}
 }
 
 func cloneStrings(values []string) []string {

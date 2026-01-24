@@ -1,8 +1,9 @@
 package config
 
 import (
-	"github.com/Testzyler/go-microservice/global/pkg/config"
 	"time"
+
+	"github.com/Testzyler/go-microservice/global/pkg/config"
 )
 
 type Common struct {
@@ -28,8 +29,17 @@ type Async struct {
 	AsynqConcurrency int    `mapstructure:"auth_async_concurrency"`
 }
 
+type Email struct {
+	EmailEnabled          bool   `mapstructure:"auth_email_enabled"`
+	EmailFrom             string `mapstructure:"auth_email_from"`
+	PostmarkServerToken   string `mapstructure:"auth_email_postmark_server_token"`
+	PostmarkMessageStream string `mapstructure:"auth_email_postmark_message_stream"`
+	PostmarkEndpoint      string `mapstructure:"auth_email_postmark_endpoint"`
+}
+
 type ServerConfig struct {
-	Common
+	Common         `mapstructure:",squash"`
+	Async          `mapstructure:",squash"`
 	HTTPPort       int           `mapstructure:"auth_http_port"`
 	Metrics        int           `mapstructure:"auth_metrics_port"`
 	JWTSecret      string        `mapstructure:"auth_jwt_secret"`
@@ -41,23 +51,23 @@ type ServerConfig struct {
 	DBMaxIdleConns int           `mapstructure:"auth_db_max_idle_conns"`
 	DBConnMaxIdle  time.Duration `mapstructure:"auth_db_conn_max_idle"`
 	DBConnMaxLife  time.Duration `mapstructure:"auth_db_conn_max_life"`
-	Async
 }
 
 type WorkerConfig struct {
-	Common
+	Common  `mapstructure:",squash"`
+	Async   `mapstructure:",squash"`
+	Email   `mapstructure:",squash"`
 	Metrics int `mapstructure:"auth_metrics_port"`
-	Async
 }
 
 type SchedulerConfig struct {
-	Common
+	Common           `mapstructure:",squash"`
+	Async            `mapstructure:",squash"`
 	Metrics          int    `mapstructure:"auth_scheduler_metrics_port"`
 	CleanupCron      string `mapstructure:"auth_scheduler_cleanup_cron"`
 	HeartbeatCron    string `mapstructure:"auth_scheduler_heartbeat_cron"`
 	HeartbeatQueue   string `mapstructure:"auth_scheduler_heartbeat_queue"`
 	CleanupGraceMins int    `mapstructure:"auth_scheduler_cleanup_grace_minutes"`
-	Async
 }
 
 func LoadServer(envFiles []string) (ServerConfig, error) {
@@ -108,6 +118,11 @@ func defaultMap() map[string]interface{} {
 		"auth_async_queue_audit":               5,
 		"auth_async_queue_heartbeat":           2,
 		"auth_async_concurrency":               10,
+		"auth_email_enabled":                   false,
+		"auth_email_from":                      "",
+		"auth_email_postmark_server_token":     "",
+		"auth_email_postmark_message_stream":   "outbound",
+		"auth_email_postmark_endpoint":         "https://api.postmarkapp.com/email",
 		"auth_scheduler_metrics_port":          9003,
 		"auth_scheduler_cleanup_cron":          "@every 30m",
 		"auth_scheduler_heartbeat_cron":        "@every 1m",

@@ -42,6 +42,16 @@ This repo now holds a lean starting point: an **internal gateway** plus an **aut
      -d '{"email":"user@example.com","password":"S3cretPass!"}'
    ```
 
+## Email (Postmark)
+Mailer worker sends welcome/MFA emails via Postmark when enabled. Configure these envs:
+```bash
+AUTH_EMAIL_ENABLED=true
+AUTH_EMAIL_FROM="Your Name <you@domain.com>"
+AUTH_EMAIL_POSTMARK_SERVER_TOKEN=your-postmark-token
+AUTH_EMAIL_POSTMARK_MESSAGE_STREAM=outbound
+AUTH_EMAIL_POSTMARK_ENDPOINT=https://api.postmarkapp.com/email
+```
+
 ## Structure
 - `main.go` – CLI entry (gateway + auth + workers + scheduler + migrate).
 - `services/internal-gateway` – Fiber server, middleware, and auth helpers.
