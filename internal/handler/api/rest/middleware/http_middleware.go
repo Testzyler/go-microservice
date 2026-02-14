@@ -20,6 +20,7 @@ type Config struct {
 }
 
 func Register(app *fiber.App, cfg Config) {
+	app.Use(RequestMetrics())
 	app.Use(requestid.New())
 	app.Use(recover.New(recover.Config{
 		EnableStackTrace: normalizeEnvironment(cfg.Environment) != "production",
@@ -39,6 +40,7 @@ func Register(app *fiber.App, cfg Config) {
 	app.Use(limiter.New(limiter.Config{
 		Max:        rateLimitMax(cfg.Environment),
 		Expiration: time.Minute,
+		Next:       shouldSkipRateLimit,
 		KeyGenerator: func(c *fiber.Ctx) string {
 			return c.IP()
 		},
@@ -84,4 +86,9 @@ func buildAllowOrigins(origins []string) string {
 	}
 
 	return strings.Join(filtered, ",")
+}
+
+func shouldSkipRateLimit(c *fiber.Ctx) bool {
+	path := c.Path()
+	return path == "/api/v1/healthz" || path == "/api/v1/readyz"
 }

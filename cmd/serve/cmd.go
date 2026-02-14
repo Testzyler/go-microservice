@@ -5,19 +5,23 @@ import (
 	"errors"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/sklinkert/go-ddd/internal/builders"
+	"github.com/sklinkert/go-ddd/internal/infrastructure/metrics"
 )
 
 type Config struct {
-	DSN         string
-	Port        string
-	CORSOrigins []string
-	Environment string
-	LogLevel    string
+	DSN            string
+	Port           string
+	CORSOrigins    []string
+	Environment    string
+	LogLevel       string
+	MetricsEnabled bool
+	MetricsPort    string
 }
 
 func DefaultConfig() Config {
@@ -49,12 +53,27 @@ func DefaultConfig() Config {
 		logLevel = "debug"
 	}
 
+	metricsEnabled := true
+	if raw := strings.TrimSpace(os.Getenv("METRICS_ENABLED")); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err == nil {
+			metricsEnabled = parsed
+		}
+	}
+
+	metricsPort := strings.TrimSpace(os.Getenv("METRICS_PORT"))
+	if metricsPort == "" {
+		metricsPort = ":9090"
+	}
+
 	return Config{
-		DSN:         dsn,
-		Port:        port,
-		CORSOrigins: corsOrigins,
-		Environment: environment,
-		LogLevel:    logLevel,
+		DSN:            dsn,
+		Port:           port,
+		CORSOrigins:    corsOrigins,
+		Environment:    environment,
+		LogLevel:       logLevel,
+		MetricsEnabled: metricsEnabled,
+		MetricsPort:    metricsPort,
 	}
 }
 
@@ -70,6 +89,17 @@ func Run(ctx context.Context, cfg Config) error {
 		return err
 	}
 
+	var metricsServer *metrics.Server
+	var metricsErrCh <-chan error
+	if cfg.MetricsEnabled {
+		metricsServer = metrics.NewServer(cfg.MetricsPort, nil)
+		ch := make(chan error, 1)
+		metricsErrCh = ch
+		go func() {
+			ch <- metricsServer.Start()
+		}()
+	}
+
 	serverErrCh := make(chan error, 1)
 	go func() {
 		serverErrCh <- app.Start()
@@ -80,9 +110,14 @@ func Run(ctx context.Context, cfg Config) error {
 
 	select {
 	case serveErr := <-serverErrCh:
+		metricsShutdownErr := shutdownMetricsServer(context.Background(), metricsServer)
+		metricsServeErr := awaitOptionalError(metricsErrCh)
 		closeErr := app.Close(context.Background())
-		return errors.Join(serveErr, closeErr)
-	case <-signalCtx.Done():
+		if isExpectedShutdownError(metricsServeErr) {
+			return errors.Join(serveErr, metricsShutdownErr, closeErr)
+		}
+		return errors.Join(serveErr, metricsShutdownErr, closeErr, metricsServeErr)
+	case metricsServeErr := <-metricsErrCh:
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -90,9 +125,22 @@ func Run(ctx context.Context, cfg Config) error {
 		closeErr := app.Close(shutdownCtx)
 		serveErr := <-serverErrCh
 		if isExpectedShutdownError(serveErr) {
-			return errors.Join(shutdownErr, closeErr)
+			return errors.Join(metricsServeErr, shutdownErr, closeErr)
 		}
-		return errors.Join(shutdownErr, closeErr, serveErr)
+		return errors.Join(metricsServeErr, shutdownErr, closeErr, serveErr)
+	case <-signalCtx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		metricsShutdownErr := shutdownMetricsServer(shutdownCtx, metricsServer)
+		shutdownErr := app.Shutdown(shutdownCtx)
+		closeErr := app.Close(shutdownCtx)
+		serveErr := <-serverErrCh
+		metricsServeErr := awaitOptionalError(metricsErrCh)
+		if isExpectedShutdownError(serveErr) && isExpectedShutdownError(metricsServeErr) {
+			return errors.Join(metricsShutdownErr, shutdownErr, closeErr)
+		}
+		return errors.Join(metricsShutdownErr, shutdownErr, closeErr, serveErr, metricsServeErr)
 	}
 }
 
@@ -117,4 +165,18 @@ func isExpectedShutdownError(err error) bool {
 	return strings.Contains(message, "closed network connection") ||
 		strings.Contains(message, "server closed") ||
 		strings.Contains(message, "shutdown")
+}
+
+func shutdownMetricsServer(ctx context.Context, server *metrics.Server) error {
+	if server == nil {
+		return nil
+	}
+	return server.Shutdown(ctx)
+}
+
+func awaitOptionalError(ch <-chan error) error {
+	if ch == nil {
+		return nil
+	}
+	return <-ch
 }

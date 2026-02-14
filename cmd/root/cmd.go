@@ -33,7 +33,9 @@ func (b *CommandBuilder) Build() *cobra.Command {
 	rootCmd.Flags().StringVar(&b.serveConfig.Port, "port", b.serveConfig.Port, "HTTP listen port (for example :8080)")
 	rootCmd.Flags().StringSliceVar(&b.serveConfig.CORSOrigins, "cors-origins", b.serveConfig.CORSOrigins, "Allowed CORS origins")
 	rootCmd.Flags().StringVar(&b.serveConfig.Environment, "app-env", b.serveConfig.Environment, "Application environment (development|production)")
-	rootCmd.Flags().StringVar(&b.serveConfig.LogLevel, "log-level", b.serveConfig.LogLevel, "Zap log level (debug|info|warn|error)")
+	rootCmd.Flags().StringVar(&b.serveConfig.LogLevel, "log-level", b.serveConfig.LogLevel, "Zap log level (trace|debug|info|warn|error)")
+	rootCmd.Flags().BoolVar(&b.serveConfig.MetricsEnabled, "metrics-enabled", b.serveConfig.MetricsEnabled, "Enable Prometheus metrics server")
+	rootCmd.Flags().StringVar(&b.serveConfig.MetricsPort, "metrics-port", b.serveConfig.MetricsPort, "Prometheus metrics server port (for example :9090)")
 
 	serveCmd := &cobra.Command{
 		Use:   "serve",
@@ -46,7 +48,9 @@ func (b *CommandBuilder) Build() *cobra.Command {
 	serveCmd.Flags().StringVar(&b.serveConfig.Port, "port", b.serveConfig.Port, "HTTP listen port (for example :8080)")
 	serveCmd.Flags().StringSliceVar(&b.serveConfig.CORSOrigins, "cors-origins", b.serveConfig.CORSOrigins, "Allowed CORS origins")
 	serveCmd.Flags().StringVar(&b.serveConfig.Environment, "app-env", b.serveConfig.Environment, "Application environment (development|production)")
-	serveCmd.Flags().StringVar(&b.serveConfig.LogLevel, "log-level", b.serveConfig.LogLevel, "Zap log level (debug|info|warn|error)")
+	serveCmd.Flags().StringVar(&b.serveConfig.LogLevel, "log-level", b.serveConfig.LogLevel, "Zap log level (trace|debug|info|warn|error)")
+	serveCmd.Flags().BoolVar(&b.serveConfig.MetricsEnabled, "metrics-enabled", b.serveConfig.MetricsEnabled, "Enable Prometheus metrics server")
+	serveCmd.Flags().StringVar(&b.serveConfig.MetricsPort, "metrics-port", b.serveConfig.MetricsPort, "Prometheus metrics server port (for example :9090)")
 
 	migrateCmd := &cobra.Command{
 		Use:   "migrate",

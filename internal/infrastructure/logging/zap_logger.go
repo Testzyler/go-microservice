@@ -12,12 +12,17 @@ type Config struct {
 	Level       string
 }
 
+const traceLevel = "trace"
+
 func NewLogger(cfg Config) (*zap.Logger, error) {
 	environment := normalizeEnvironment(cfg.Environment)
 
 	level := defaultLevel(environment)
-	if strings.TrimSpace(cfg.Level) != "" {
-		if err := level.UnmarshalText([]byte(strings.ToLower(strings.TrimSpace(cfg.Level)))); err != nil {
+	rawLevel := strings.ToLower(strings.TrimSpace(cfg.Level))
+	if rawLevel != "" {
+		if rawLevel == traceLevel {
+			level = zapcore.DebugLevel
+		} else if err := level.UnmarshalText([]byte(rawLevel)); err != nil {
 			return nil, err
 		}
 	}
@@ -26,6 +31,10 @@ func NewLogger(cfg Config) (*zap.Logger, error) {
 	zapConfig.Level = zap.NewAtomicLevelAt(level)
 
 	return zapConfig.Build(zap.AddStacktrace(zapcore.ErrorLevel))
+}
+
+func IsTraceLevel(level string) bool {
+	return strings.EqualFold(strings.TrimSpace(level), traceLevel)
 }
 
 func normalizeEnvironment(env string) string {

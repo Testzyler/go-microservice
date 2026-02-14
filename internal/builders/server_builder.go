@@ -111,7 +111,12 @@ func (b *ServerBuilder) Build(ctx context.Context) (*ServerApp, error) {
 		return nil, err
 	}
 
-	conn, err := db.NewConnection(ctx, b.dsn)
+	var dbTraceLogger *zap.Logger
+	if logging.IsTraceLevel(b.logLevel) {
+		dbTraceLogger = logger
+	}
+
+	conn, err := db.NewConnectionWithLogger(ctx, b.dsn, dbTraceLogger)
 	if err != nil {
 		_ = logger.Sync()
 		return nil, err
@@ -126,8 +131,8 @@ func (b *ServerBuilder) Build(ctx context.Context) (*ServerApp, error) {
 	sellerService := services.NewSellerService(sellerRepo, idempotencyRepo)
 
 	app := fiber.New(fiber.Config{
-		AppName:               "go-ddd",
-		BodyLimit:             2 * 1024 * 1024,
+		AppName:               "CQRS API Server",
+		BodyLimit:             2 * 1024 * 1024, // 2MB
 		DisableStartupMessage: true,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			logger.Error("unhandled request error",
@@ -143,6 +148,8 @@ func (b *ServerBuilder) Build(ctx context.Context) (*ServerApp, error) {
 		Environment: b.environment,
 		CORSOrigins: b.corsOrigins,
 	})
+
+	rest.NewHealthController(app, b.environment, conn, logger)
 	rest.NewProductController(app, productService)
 	rest.NewSellerController(app, sellerService)
 
