@@ -1,0 +1,124 @@
+package postgres
+
+import (
+	"context"
+
+	"github.com/google/uuid"
+
+	"github.com/sklinkert/go-ddd/internal/domain/entities"
+	"github.com/sklinkert/go-ddd/internal/domain/repositories"
+	db "github.com/sklinkert/go-ddd/internal/infrastructure/db/sqlc"
+	"github.com/sklinkert/go-ddd/internal/infrastructure/pkg/errorx"
+)
+
+type SqlcSellerRepository struct {
+	queries *db.Queries
+}
+
+func NewSqlcSellerRepository(queries *db.Queries) repositories.SellerRepository {
+	return &SqlcSellerRepository{queries: queries}
+}
+
+func (repo *SqlcSellerRepository) Create(seller *entities.ValidatedSeller) (*entities.Seller, error) {
+	ctx := context.Background()
+
+	createdSeller, err := repo.queries.CreateSeller(ctx, db.CreateSellerParams{
+		ID:        seller.Id,
+		Name:      seller.Name,
+		CreatedAt: timestamptzFromTime(seller.CreatedAt),
+		UpdatedAt: timestamptzFromTime(seller.UpdatedAt),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return repo.FindById(createdSeller.ID)
+}
+
+func (repo *SqlcSellerRepository) FindById(id uuid.UUID) (*entities.Seller, error) {
+	ctx := context.Background()
+
+	dbSeller, err := repo.queries.GetSellerById(ctx, id)
+	if err != nil {
+		if isNoRowsError(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return fromSqlcSellerRow(&dbSeller), nil
+}
+
+func (repo *SqlcSellerRepository) FindAll() ([]*entities.Seller, error) {
+	ctx := context.Background()
+
+	dbSellers, err := repo.queries.GetAllSellers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	sellers := make([]*entities.Seller, len(dbSellers))
+	for i, dbSeller := range dbSellers {
+		sellers[i] = fromSqlcSellerAllRow(&dbSeller)
+	}
+
+	return sellers, nil
+}
+
+func (repo *SqlcSellerRepository) Update(seller *entities.ValidatedSeller) (*entities.Seller, error) {
+	ctx := context.Background()
+
+	err := repo.queries.UpdateSeller(ctx, db.UpdateSellerParams{
+		ID:        seller.Id,
+		Name:      seller.Name,
+		UpdatedAt: timestamptzFromTime(seller.UpdatedAt),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	updatedSeller, err := repo.FindById(seller.Id)
+	if err != nil {
+		return nil, err
+	}
+	if updatedSeller == nil {
+		return nil, errorx.NotFound(errorx.CodeSellerNotFound, errorx.MessageSellerNotFound)
+	}
+
+	return updatedSeller, nil
+}
+
+func (repo *SqlcSellerRepository) Delete(id uuid.UUID) error {
+	ctx := context.Background()
+	return repo.queries.DeleteSeller(ctx, id)
+}
+
+func fromSqlcSeller(dbSeller *db.Seller) *entities.Seller {
+	seller := &entities.Seller{
+		Name:      dbSeller.Name,
+		CreatedAt: timeFromTimestamptz(dbSeller.CreatedAt),
+		UpdatedAt: timeFromTimestamptz(dbSeller.UpdatedAt),
+	}
+	seller.Id = dbSeller.ID
+	return seller
+}
+
+func fromSqlcSellerRow(dbSeller *db.GetSellerByIdRow) *entities.Seller {
+	seller := &entities.Seller{
+		Name:      dbSeller.Name,
+		CreatedAt: timeFromTimestamptz(dbSeller.CreatedAt),
+		UpdatedAt: timeFromTimestamptz(dbSeller.UpdatedAt),
+	}
+	seller.Id = dbSeller.ID
+	return seller
+}
+
+func fromSqlcSellerAllRow(dbSeller *db.GetAllSellersRow) *entities.Seller {
+	seller := &entities.Seller{
+		Name:      dbSeller.Name,
+		CreatedAt: timeFromTimestamptz(dbSeller.CreatedAt),
+		UpdatedAt: timeFromTimestamptz(dbSeller.UpdatedAt),
+	}
+	seller.Id = dbSeller.ID
+	return seller
+}
