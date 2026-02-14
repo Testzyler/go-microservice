@@ -2,8 +2,12 @@ package serve
 
 import (
 	"context"
+	"errors"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/sklinkert/go-ddd/internal/builders"
 )
@@ -65,9 +69,31 @@ func Run(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	defer app.Close(ctx)
 
-	return app.Start()
+	serverErrCh := make(chan error, 1)
+	go func() {
+		serverErrCh <- app.Start()
+	}()
+
+	signalCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case serveErr := <-serverErrCh:
+		closeErr := app.Close(context.Background())
+		return errors.Join(serveErr, closeErr)
+	case <-signalCtx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		shutdownErr := app.Shutdown(shutdownCtx)
+		closeErr := app.Close(shutdownCtx)
+		serveErr := <-serverErrCh
+		if isExpectedShutdownError(serveErr) {
+			return errors.Join(shutdownErr, closeErr)
+		}
+		return errors.Join(shutdownErr, closeErr, serveErr)
+	}
 }
 
 func splitCSV(raw string) []string {
@@ -80,4 +106,15 @@ func splitCSV(raw string) []string {
 		}
 	}
 	return out
+}
+
+func isExpectedShutdownError(err error) bool {
+	if err == nil {
+		return true
+	}
+
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "closed network connection") ||
+		strings.Contains(message, "server closed") ||
+		strings.Contains(message, "shutdown")
 }

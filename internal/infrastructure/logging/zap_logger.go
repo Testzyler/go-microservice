@@ -22,17 +22,10 @@ func NewLogger(cfg Config) (*zap.Logger, error) {
 		}
 	}
 
-	var zapConfig zap.Config
-	if environment == "production" {
-		zapConfig = zap.NewProductionConfig()
-	} else {
-		zapConfig = zap.NewDevelopmentConfig()
-	}
-
+	zapConfig := buildConfig(environment)
 	zapConfig.Level = zap.NewAtomicLevelAt(level)
-	zapConfig.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
-	return zapConfig.Build()
+	return zapConfig.Build(zap.AddStacktrace(zapcore.ErrorLevel))
 }
 
 func normalizeEnvironment(env string) string {
@@ -54,4 +47,20 @@ func defaultLevel(environment string) zapcore.Level {
 		return zapcore.InfoLevel
 	}
 	return zapcore.DebugLevel
+}
+
+func buildConfig(environment string) zap.Config {
+	if environment == "production" {
+		cfg := zap.NewProductionConfig()
+		cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+		return cfg
+	}
+
+	cfg := zap.NewDevelopmentConfig()
+	cfg.Encoding = "console"
+	cfg.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05")
+	cfg.EncoderConfig.EncodeDuration = zapcore.StringDurationEncoder
+	cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	cfg.DisableStacktrace = true
+	return cfg
 }

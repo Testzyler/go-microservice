@@ -3,18 +3,13 @@ package builders
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/helmet"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
-	"github.com/gofiber/fiber/v2/middleware/recover"
-	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/jackc/pgx/v5"
 	"github.com/sklinkert/go-ddd/internal/application/services"
 	rest "github.com/sklinkert/go-ddd/internal/handler/api/rest"
 	"github.com/sklinkert/go-ddd/internal/handler/api/rest/httpx"
+	restmiddleware "github.com/sklinkert/go-ddd/internal/handler/api/rest/middleware"
 	db "github.com/sklinkert/go-ddd/internal/infrastructure/db/postgres"
 	"github.com/sklinkert/go-ddd/internal/infrastructure/logging"
 	"go.uber.org/zap"
@@ -143,7 +138,11 @@ func (b *ServerBuilder) Build(ctx context.Context) (*ServerApp, error) {
 			return httpx.WriteError(c, err)
 		},
 	})
-	applyHTTPMiddlewares(app, logger, b.corsOrigins, b.environment)
+	restmiddleware.Register(app, restmiddleware.Config{
+		Logger:      logger,
+		Environment: b.environment,
+		CORSOrigins: b.corsOrigins,
+	})
 	rest.NewProductController(app, productService)
 	rest.NewSellerController(app, sellerService)
 
@@ -160,42 +159,23 @@ func (a *ServerApp) Start() error {
 	return a.app.Listen(a.port)
 }
 
-func (a *ServerApp) Close(ctx context.Context) error {
-	if a.logger != nil {
-		_ = a.logger.Sync()
+func (a *ServerApp) Shutdown(ctx context.Context) error {
+	if a.app == nil {
+		return nil
 	}
+	return a.app.ShutdownWithContext(ctx)
+}
+
+func (a *ServerApp) Close(ctx context.Context) error {
 	if a.conn == nil {
+		if a.logger != nil {
+			_ = a.logger.Sync()
+		}
 		return nil
 	}
 	a.conn.Close(ctx)
-	return nil
-}
-
-func applyHTTPMiddlewares(app *fiber.App, logger *zap.Logger, corsOrigins []string, environment string) {
-	app.Use(requestid.New())
-	app.Use(recover.New(recover.Config{
-		EnableStackTrace: strings.ToLower(environment) != "production",
-	}))
-	app.Use(logging.FiberRequestLogger(logger))
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: strings.Join(corsOrigins, ","),
-		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders: "Origin,Content-Type,Accept,Authorization,Idempotency-Key,X-Request-ID",
-		MaxAge:       86400,
-	}))
-	app.Use(helmet.New())
-	app.Use(limiter.New(limiter.Config{
-		Max:        rateLimitMax(environment),
-		Expiration: time.Minute,
-		KeyGenerator: func(c *fiber.Ctx) string {
-			return c.IP()
-		},
-	}))
-}
-
-func rateLimitMax(environment string) int {
-	if strings.ToLower(strings.TrimSpace(environment)) == "production" {
-		return 120
+	if a.logger != nil {
+		_ = a.logger.Sync()
 	}
-	return 1000
+	return nil
 }
