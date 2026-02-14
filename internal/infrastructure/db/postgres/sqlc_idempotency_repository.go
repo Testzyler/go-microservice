@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/sklinkert/go-ddd/internal/domain/entities"
 	"github.com/sklinkert/go-ddd/internal/domain/repositories"
 	db "github.com/sklinkert/go-ddd/internal/infrastructure/db/sqlc"
@@ -77,4 +78,8 @@ func (r *SqlcIdempotencyRepository) Update(ctx context.Context, record *entities
 		StatusCode: int(updatedRecord.StatusCode),
 		CreatedAt:  timeFromTimestamptz(updatedRecord.CreatedAt),
 	}, nil
+}
+
+func (r *SqlcIdempotencyRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	return r.queries.DeleteIdempotencyRecordByID(ctx, id)
 }

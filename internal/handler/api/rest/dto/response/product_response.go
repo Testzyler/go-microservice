@@ -3,13 +3,13 @@ package response
 import "time"
 
 type ProductResponse struct {
-	Id        string
-	Name      string
-	Price     float64
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Id        string    `json:"id"`
+	Name      string    `json:"name"`
+	Price     float64   `json:"price"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type ListProductsResponse struct {
-	Products []*ProductResponse `json:"Products"`
+	Products []*ProductResponse `json:"products"`
 }

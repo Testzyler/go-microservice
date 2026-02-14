@@ -10,6 +10,7 @@ package errorx
 // DOMAIN
 // - GEN: generic
 // - HTTP: transport boundary
+// - IDP: idempotency domain
 // - SLR: seller domain
 // - PRD: product domain
 //
@@ -26,6 +27,13 @@ const (
 
 	CodeHTTPBadRequest        = "SYS-HTTP-400-001"
 	MessageInvalidRequestBody = "invalid request body"
+)
+
+const (
+	CodeIdempotencyInProgress    = "BIZ-IDP-409-001"
+	MessageIdempotencyInProgress = "request with same idempotency key is still in progress"
+	CodeIdempotencyKeyReused     = "BIZ-IDP-409-002"
+	MessageIdempotencyKeyReused  = "idempotency key is already used with different request payload"
 )
 
 const (

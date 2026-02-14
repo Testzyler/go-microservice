@@ -98,3 +98,11 @@ func ParseUUIDParam(c *fiber.Ctx, param, code, message string) (uuid.UUID, error
 	}
 	return id, nil
 }
+
+func ResolveIdempotencyKey(c *fiber.Ctx, bodyValue string) string {
+	headerValue := strings.TrimSpace(c.Get("Idempotency-Key"))
+	if headerValue != "" {
+		return headerValue
+	}
+	return strings.TrimSpace(bodyValue)
+}

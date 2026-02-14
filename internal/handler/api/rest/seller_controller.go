@@ -40,6 +40,7 @@ func (sc *SellerController) CreateSellerController(c *fiber.Ctx) error {
 	if err != nil {
 		return httpx.WriteError(c, err)
 	}
+	sellerCommand.IdempotencyKey = httpx.ResolveIdempotencyKey(c, sellerCommand.IdempotencyKey)
 
 	commandResult, err := sc.service.CreateSeller(sellerCommand)
 	if err != nil {
@@ -93,6 +94,7 @@ func (sc *SellerController) PutSellerController(c *fiber.Ctx) error {
 	if err != nil {
 		return httpx.WriteError(c, err)
 	}
+	updateSellerCommand.IdempotencyKey = httpx.ResolveIdempotencyKey(c, updateSellerCommand.IdempotencyKey)
 
 	commandResult, err := sc.service.UpdateSeller(updateSellerCommand)
 	if err != nil {
@@ -110,7 +112,10 @@ func (sc *SellerController) DeleteSellerController(c *fiber.Ctx) error {
 		return httpx.WriteError(c, err)
 	}
 
-	_, err = sc.service.DeleteSeller(&command.DeleteSellerCommand{Id: id})
+	_, err = sc.service.DeleteSeller(&command.DeleteSellerCommand{
+		IdempotencyKey: httpx.ResolveIdempotencyKey(c, ""),
+		Id:             id,
+	})
 	if err != nil {
 		return httpx.WriteError(c, err)
 	}

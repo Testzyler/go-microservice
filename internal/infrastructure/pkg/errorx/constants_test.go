@@ -10,6 +10,8 @@ func TestErrorCodes_AreUniqueAndWellFormed(t *testing.T) {
 		"CodeInternal":               CodeInternal,
 		"CodeValidationError":        CodeValidationError,
 		"CodeHTTPBadRequest":         CodeHTTPBadRequest,
+		"CodeIdempotencyInProgress":  CodeIdempotencyInProgress,
+		"CodeIdempotencyKeyReused":   CodeIdempotencyKeyReused,
 		"CodeSellerNotFound":         CodeSellerNotFound,
 		"CodeSellerInvalidID":        CodeSellerInvalidID,
 		"CodeSellerIDRequired":       CodeSellerIDRequired,
@@ -34,4 +36,3 @@ func TestErrorCodes_AreUniqueAndWellFormed(t *testing.T) {
 		seen[code] = name
 	}
 }
-

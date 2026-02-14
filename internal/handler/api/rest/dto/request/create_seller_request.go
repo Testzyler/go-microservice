@@ -7,7 +7,7 @@ import (
 )
 
 type CreateSellerRequest struct {
-	IdempotencyKey string `json:"idempotency_key"`
+	IdempotencyKey string `json:"idempotencyKey"`
 	Name           string `json:"name"`
 }
 

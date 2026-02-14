@@ -37,6 +37,7 @@ func (pc *ProductController) CreateProductController(c *fiber.Ctx) error {
 	if err != nil {
 		return httpx.WriteError(c, err)
 	}
+	productCommand.IdempotencyKey = httpx.ResolveIdempotencyKey(c, productCommand.IdempotencyKey)
 
 	result, err := pc.service.CreateProduct(productCommand)
 	if err != nil {

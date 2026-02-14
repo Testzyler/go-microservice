@@ -13,3 +13,7 @@ UPDATE idempotency_records
 SET request = $2, response = $3, status_code = $4
 WHERE id = $1
 RETURNING *;
+
+-- name: DeleteIdempotencyRecordByID :exec
+DELETE FROM idempotency_records
+WHERE id = $1;

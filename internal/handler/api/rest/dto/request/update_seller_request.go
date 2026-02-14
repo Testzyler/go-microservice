@@ -8,7 +8,7 @@ import (
 )
 
 type UpdateSellerRequest struct {
-	IdempotencyKey string    `json:"idempotency_key"`
+	IdempotencyKey string    `json:"idempotencyKey"`
 	Id             uuid.UUID `json:"id"`
 	Name           string    `json:"name"`
 }

@@ -8,7 +8,7 @@ import (
 )
 
 type CreateProductRequest struct {
-	IdempotencyKey string  `json:"idempotency_key"`
+	IdempotencyKey string  `json:"idempotencyKey"`
 	Name           string  `json:"name"`
 	Price          float64 `json:"price"`
 	SellerId       string  `json:"sellerId"`

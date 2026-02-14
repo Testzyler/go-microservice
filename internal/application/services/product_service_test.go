@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/sklinkert/go-ddd/internal/application/command"
+	"github.com/sklinkert/go-ddd/internal/application/common"
 	"github.com/sklinkert/go-ddd/internal/application/query"
 	"github.com/sklinkert/go-ddd/internal/domain/entities"
+	"github.com/sklinkert/go-ddd/internal/infrastructure/pkg/errorx"
 	"testing"
 )
 
@@ -87,6 +89,16 @@ func (m *MockIdempotencyRepository) Update(ctx context.Context, record *entities
 	return record, nil
 }
 
+func (m *MockIdempotencyRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	for key, record := range m.records {
+		if record.Id == id {
+			delete(m.records, key)
+			break
+		}
+	}
+	return nil
+}
+
 func TestProductService_CreateProduct(t *testing.T) {
 	productRepo := &MockProductRepository{}
 	sellerRepo := &MockSellerRepository{}
@@ -162,6 +174,87 @@ func TestProductService_FindProductById(t *testing.T) {
 	}
 	if missingProduct != nil {
 		t.Error("Expected nil product for non-existent Id, but got a value")
+	}
+}
+
+func TestProductService_CreateProduct_IdempotencyReplay(t *testing.T) {
+	productRepo := &MockProductRepository{}
+	sellerRepo := &MockSellerRepository{}
+	idempotencyRepo := NewMockIdempotencyRepository()
+	service := NewProductService(productRepo, sellerRepo, idempotencyRepo)
+
+	key := "idp-replay-key"
+	cmd := &command.CreateProductCommand{
+		IdempotencyKey: key,
+		Name:           "from-cache",
+		Price:          99.5,
+		SellerId:       uuid.New(),
+	}
+	expected := command.CreateProductCommandResult{
+		Result: &common.ProductResult{
+			Id:    uuid.New(),
+			Name:  "from-cache",
+			Price: 99.5,
+		},
+	}
+	requestPayload, err := marshalJSON(cmd)
+	if err != nil {
+		t.Fatalf("unexpected marshal request error: %v", err)
+	}
+	responsePayload, err := marshalJSON(expected)
+	if err != nil {
+		t.Fatalf("unexpected marshal response error: %v", err)
+	}
+
+	record := entities.NewIdempotencyRecord(key, requestPayload)
+	record.SetResponse(responsePayload, 201)
+	_, _ = idempotencyRepo.Create(context.Background(), record)
+
+	result, err := service.CreateProduct(cmd)
+	if err != nil {
+		t.Fatalf("expected no error but got %v", err)
+	}
+	if result == nil || result.Result == nil {
+		t.Fatalf("expected cached result")
+	}
+	if result.Result.Name != "from-cache" {
+		t.Fatalf("expected cached name from-cache but got %s", result.Result.Name)
+	}
+	if len(productRepo.products) != 0 {
+		t.Fatalf("expected repository not to be called for replay")
+	}
+}
+
+func TestProductService_CreateProduct_IdempotencyInProgress(t *testing.T) {
+	productRepo := &MockProductRepository{}
+	sellerRepo := &MockSellerRepository{}
+	idempotencyRepo := NewMockIdempotencyRepository()
+	service := NewProductService(productRepo, sellerRepo, idempotencyRepo)
+
+	key := "idp-in-progress-key"
+	cmd := &command.CreateProductCommand{
+		IdempotencyKey: key,
+		Name:           "test",
+		Price:          10,
+		SellerId:       uuid.New(),
+	}
+	requestPayload, err := marshalJSON(cmd)
+	if err != nil {
+		t.Fatalf("unexpected marshal request error: %v", err)
+	}
+
+	record := entities.NewIdempotencyRecord(key, requestPayload)
+	_, _ = idempotencyRepo.Create(context.Background(), record)
+
+	_, err = service.CreateProduct(cmd)
+	if err == nil {
+		t.Fatalf("expected conflict error for in-progress record")
+	}
+	if errorx.KindOf(err) != errorx.KindConflict {
+		t.Fatalf("expected conflict kind but got %v", errorx.KindOf(err))
+	}
+	if errorx.Code(err) != errorx.CodeIdempotencyInProgress {
+		t.Fatalf("expected code %s but got %s", errorx.CodeIdempotencyInProgress, errorx.Code(err))
 	}
 }
 

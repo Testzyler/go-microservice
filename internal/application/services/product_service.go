@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/sklinkert/go-ddd/internal/application/command"
@@ -36,29 +35,27 @@ func NewProductService(
 func (s *ProductService) CreateProduct(productCommand *command.CreateProductCommand) (*command.CreateProductCommandResult, error) {
 	ctx := context.Background()
 
-	// Check idempotency key
-	if productCommand.IdempotencyKey != "" {
-		existingRecord, err := s.idempotencyRepo.FindByKey(ctx, productCommand.IdempotencyKey)
-		if err != nil {
-			return nil, err
-		}
-
-		if existingRecord != nil {
-			// Return cached response
-			var result command.CreateProductCommandResult
-			if err := json.Unmarshal([]byte(existingRecord.Response), &result); err != nil {
-				return nil, err
-			}
-			return &result, nil
-		}
+	var replayResult command.CreateProductCommandResult
+	idempotencyRecord, replayed, err := beginIdempotentOperation(
+		ctx,
+		s.idempotencyRepo,
+		productCommand.IdempotencyKey,
+		productCommand,
+		&replayResult,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if replayed {
+		return &replayResult, nil
 	}
 
-	// Create idempotency record
-	var idempotencyRecord *entities.IdempotencyRecord
-	if productCommand.IdempotencyKey != "" {
-		requestJSON, _ := json.Marshal(productCommand)
-		idempotencyRecord = entities.NewIdempotencyRecord(productCommand.IdempotencyKey, string(requestJSON))
-	}
+	writeCompleted := false
+	defer func() {
+		if !writeCompleted {
+			releaseIdempotentReservation(ctx, s.idempotencyRepo, idempotencyRecord)
+		}
+	}()
 
 	storedSeller, err := s.sellerRepository.FindById(productCommand.SellerId)
 	if err != nil {
@@ -94,16 +91,8 @@ func (s *ProductService) CreateProduct(productCommand *command.CreateProductComm
 		Result: mapper.NewProductResultFromValidatedEntity(validatedProduct),
 	}
 
-	// Store response in idempotency record
-	if idempotencyRecord != nil {
-		responseJSON, _ := json.Marshal(result)
-		idempotencyRecord.SetResponse(string(responseJSON), 200)
-		_, err = s.idempotencyRepo.Create(ctx, idempotencyRecord)
-		if err != nil {
-			// Log error but don't fail the operation
-			// In production, you might want to handle this differently
-		}
-	}
+	finalizeIdempotentOperation(ctx, s.idempotencyRepo, idempotencyRecord, result, 201)
+	writeCompleted = true
 
 	return &result, nil
 }
@@ -144,29 +133,27 @@ func (s *ProductService) FindProductById(productQuery *query.GetProductByIdQuery
 func (s *ProductService) UpdateProduct(productCommand *command.UpdateProductCommand) (*command.UpdateProductCommandResult, error) {
 	ctx := context.Background()
 
-	// Check idempotency key
-	if productCommand.IdempotencyKey != "" {
-		existingRecord, err := s.idempotencyRepo.FindByKey(ctx, productCommand.IdempotencyKey)
-		if err != nil {
-			return nil, err
-		}
-
-		if existingRecord != nil {
-			// Return cached response
-			var result command.UpdateProductCommandResult
-			if err := json.Unmarshal([]byte(existingRecord.Response), &result); err != nil {
-				return nil, err
-			}
-			return &result, nil
-		}
+	var replayResult command.UpdateProductCommandResult
+	idempotencyRecord, replayed, err := beginIdempotentOperation(
+		ctx,
+		s.idempotencyRepo,
+		productCommand.IdempotencyKey,
+		productCommand,
+		&replayResult,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if replayed {
+		return &replayResult, nil
 	}
 
-	// Create idempotency record
-	var idempotencyRecord *entities.IdempotencyRecord
-	if productCommand.IdempotencyKey != "" {
-		requestJSON, _ := json.Marshal(productCommand)
-		idempotencyRecord = entities.NewIdempotencyRecord(productCommand.IdempotencyKey, string(requestJSON))
-	}
+	writeCompleted := false
+	defer func() {
+		if !writeCompleted {
+			releaseIdempotentReservation(ctx, s.idempotencyRepo, idempotencyRecord)
+		}
+	}()
 
 	// Find existing product
 	existingProduct, err := s.productRepository.FindById(productCommand.Id)
@@ -219,45 +206,35 @@ func (s *ProductService) UpdateProduct(productCommand *command.UpdateProductComm
 		Result: mapper.NewProductResultFromValidatedEntity(validatedProduct),
 	}
 
-	// Store response in idempotency record
-	if idempotencyRecord != nil {
-		responseJSON, _ := json.Marshal(result)
-		idempotencyRecord.SetResponse(string(responseJSON), 200)
-		_, err = s.idempotencyRepo.Create(ctx, idempotencyRecord)
-		if err != nil {
-			// Log error but don't fail the operation
-			// In production, you might want to handle this differently
-		}
-	}
+	finalizeIdempotentOperation(ctx, s.idempotencyRepo, idempotencyRecord, result, 200)
+	writeCompleted = true
 
 	return &result, nil
 }
 func (s *ProductService) DeleteProduct(productCommand *command.DeleteProductCommand) (*command.DeleteProductCommandResult, error) {
 	ctx := context.Background()
 
-	// Check idempotency key
-	if productCommand.IdempotencyKey != "" {
-		existingRecord, err := s.idempotencyRepo.FindByKey(ctx, productCommand.IdempotencyKey)
-		if err != nil {
-			return nil, err
-		}
-
-		if existingRecord != nil {
-			// Return cached response
-			var result command.DeleteProductCommandResult
-			if err := json.Unmarshal([]byte(existingRecord.Response), &result); err != nil {
-				return nil, err
-			}
-			return &result, nil
-		}
+	var replayResult command.DeleteProductCommandResult
+	idempotencyRecord, replayed, err := beginIdempotentOperation(
+		ctx,
+		s.idempotencyRepo,
+		productCommand.IdempotencyKey,
+		productCommand,
+		&replayResult,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if replayed {
+		return &replayResult, nil
 	}
 
-	// Create idempotency record
-	var idempotencyRecord *entities.IdempotencyRecord
-	if productCommand.IdempotencyKey != "" {
-		requestJSON, _ := json.Marshal(productCommand)
-		idempotencyRecord = entities.NewIdempotencyRecord(productCommand.IdempotencyKey, string(requestJSON))
-	}
+	writeCompleted := false
+	defer func() {
+		if !writeCompleted {
+			releaseIdempotentReservation(ctx, s.idempotencyRepo, idempotencyRecord)
+		}
+	}()
 
 	// Check if product exists
 	existingProduct, err := s.productRepository.FindById(productCommand.Id)
@@ -279,16 +256,8 @@ func (s *ProductService) DeleteProduct(productCommand *command.DeleteProductComm
 		Success: true,
 	}
 
-	// Store response in idempotency record
-	if idempotencyRecord != nil {
-		responseJSON, _ := json.Marshal(result)
-		idempotencyRecord.SetResponse(string(responseJSON), 200)
-		_, err = s.idempotencyRepo.Create(ctx, idempotencyRecord)
-		if err != nil {
-			// Log error but don't fail the operation
-			// In production, you might want to handle this differently
-		}
-	}
+	finalizeIdempotentOperation(ctx, s.idempotencyRepo, idempotencyRecord, result, 204)
+	writeCompleted = true
 
 	return &result, nil
 }
